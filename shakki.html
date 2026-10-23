@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shakki</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1610;
+    --bg2: #231f18;
+    --bg3: #2e2820;
+    --gold: #c9a84c;
+    --gold2: #e8c96e;
+    --cream: #f5ead8;
+    --muted: #8a7e6a;
+    --light-sq: #f0d9b5;
+    --dark-sq: #b58863;
+    --light-sq-hover: #e8d09e;
+    --dark-sq-hover: #a87b58;
+    --selected: #f6f624cc;
+    --last-move: #cdd16faa;
+    --check-red: #c0392b;
+    --valid-dot: rgba(0,0,0,0.28);
+    --valid-cap: rgba(246,246,36,0.6);
+    --border-r: 6px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--cream);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 20px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  header p {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg2);
+    border: 1px solid #3a3228;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(201,168,76,0.15);
+  }
+
+  .player-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 440px;
+    padding: 8px 12px;
+    background: var(--bg3);
+    border-radius: var(--border-r);
+    border: 1px solid #3a3228;
+  }
+
+  .player-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .player-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--muted);
+    flex-shrink: 0;
+  }
+
+  .player-dot.white { background: #f5ead8; border-color: #f5ead8; }
+  .player-dot.black { background: #1a1610; border-color: var(--muted); }
+  .player-dot.active { box-shadow: 0 0 0 3px var(--gold); }
+
+  .player-name {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .player-name.active { color: var(--gold); }
+
+  .captured-pieces {
+    font-size: 16px;
+    letter-spacing: 0px;
+    min-width: 80px;
+    text-align: right;
+    line-height: 1;
+  }
+
+  .board-outer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .file-labels, .rank-labels {
+    display: flex;
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    user-select: none;
+  }
+
+  .file-labels { flex-direction: row; }
+  .rank-labels { flex-direction: column; }
+
+  .file-labels span { width: 52px; text-align: center; }
+  .rank-labels span { height: 52px; display: flex; align-items: center; }
+
+  .board-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(8, 52px);
+    grid-template-rows: repeat(8, 52px);
+    border: 2px solid #3a3228;
+    border-radius: 2px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  .cell {
+    width: 52px; height: 52px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 32px;
+    position: relative;
+    user-select: none;
+    transition: filter 0.1s;
+  }
+
+  .cell:hover { filter: brightness(1.1); }
+  .cell.light { background: var(--light-sq); }
+  .cell.dark  { background: var(--dark-sq); }
+
+  .cell.last-move-from, .cell.last-move-to { background: #cdd16f99 !important; }
+  .cell.selected { background: #f6f62488 !important; }
+  .cell.in-check { background: #c0392b99 !important; }
+
+  .cell.valid-move::after {
+    content: '';
+    position: absolute;
+    width: 30%; height: 30%;
+    border-radius: 50%;
+    background: var(--valid-dot);
+    pointer-events: none;
+  }
+
+  .cell.valid-capture::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    box-shadow: inset 0 0 0 4px rgba(20,20,0,0.35);
+    pointer-events: none;
+  }
+
+  .status-bar {
+    width: 100%;
+    max-width: 440px;
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cream);
+    padding: 10px 16px;
+    background: var(--bg3);
+    border-radius: var(--border-r);
+    border: 1px solid #3a3228;
+    transition: color 0.3s;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .status-bar.check { color: #e74c3c; }
+  .status-bar.win   { color: var(--gold); font-family: 'Playfair Display', serif; font-size: 15px; }
+
+  .controls {
+    display: flex; gap: 8px;
+    margin-top: 4px;
+  }
+
+  button {
+    background: transparent;
+    border: 1px solid #3a3228;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 8px 18px;
+    border-radius: var(--border-r);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  button:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+
+  .promotion-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+
+  .promotion-box {
+    background: var(--bg2);
+    border: 1px solid var(--gold);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.8);
+  }
+
+  .promotion-box h3 {
+    font-family: 'Playfair Display', serif;
+    color: var(--gold);
+    margin-bottom: 16px;
+    font-size: 18px;
+    letter-spacing: 0.05em;
+  }
+
+  .promotion-pieces {
+    display: flex; gap: 8px;
+  }
+
+  .promo-btn {
+    width: 60px; height: 60px;
+    font-size: 38px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid #3a3228;
+    border-radius: 8px;
+    cursor: pointer;
+    background: var(--bg3);
+    transition: all 0.15s;
+    padding: 0;
+    color: unset;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .promo-btn:hover {
+    border-color: var(--gold);
+    background: var(--bg);
+    transform: scale(1.08);
+  }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 520px) {
+    #board { grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px); }
+    .cell { width: 40px; height: 40px; font-size: 24px; }
+    .file-labels span { width: 40px; }
+    .rank-labels span { height: 40px; }
+    .player-row, .status-bar { max-width: 340px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Shakki</h1>
+  <p>Kaksinpeli &mdash; siirrä klikkaamalla</p>
+</header>
+
+<div class="game-container">
+
+  <div class="player-row" id="row-black">
+    <div class="player-info">
+      <div class="player-dot black" id="dot-black"></div>
+      <span class="player-name" id="name-black">Musta</span>
+    </div>
+    <div class="captured-pieces" id="cap-white"></div>
+  </div>
+
+  <div class="board-outer">
+    <div class="rank-labels" id="rlabels"></div>
+    <div class="board-wrap">
+      <div id="board"></div>
+      <div class="file-labels" id="clabels"></div>
+    </div>
+  </div>
+
+  <div class="player-row" id="row-white">
+    <div class="player-info">
+      <div class="player-dot white active" id="dot-white"></div>
+      <span class="player-name active" id="name-white">Valkoinen</span>
+    </div>
+    <div class="captured-pieces" id="cap-black"></div>
+  </div>
+
+  <div class="status-bar" id="status">Valkoisen vuoro</div>
+
+  <div class="controls">
+    <button onclick="resetGame()">&#8635; Uusi peli</button>
+  </div>
+
+</div>
+
+<div class="promotion-overlay hidden" id="promo-overlay">
+  <div class="promotion-box">
+    <h3>Valitse korotus</h3>
+    <div class="promotion-pieces" id="promo-pieces"></div>
+  </div>
+</div>
+
+<script>
+const GLYPHS = {
+  wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',
+  bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'
+};
+
+let board, turn, selected, validMoves, lastMove, capturedW, capturedB, gameOver, enPassant, castleRights;
+let pendingPromo = null;
+
+function initBoard() {
+  const b = Array(8).fill(null).map(() => Array(8).fill(null));
+  const back = ['R','N','B','Q','K','B','N','R'];
+  for (let i = 0; i < 8; i++) {
+    b[0][i] = 'b' + back[i]; b[7][i] = 'w' + back[i];
+    b[1][i] = 'bP'; b[6][i] = 'wP';
+  }
+  return b;
+}
+
+function resetGame() {
+  board = initBoard(); turn = 'w'; selected = null; validMoves = [];
+  lastMove = null; capturedW = []; capturedB = []; gameOver = false;
+  enPassant = null; pendingPromo = null;
+  castleRights = { wK:true, wR0:true, wR7:true, bK:true, bR0:true, bR7:true };
+  document.getElementById('promo-overlay').classList.add('hidden');
+  render(); updateTurnUI();
+}
+
+const col = p => p ? p[0] : null;
+const opp = c => c === 'w' ? 'b' : 'w';
+const inB = (r,c) => r>=0&&r<8&&c>=0&&c<8;
+
+function kingPos(b, c) {
+  for (let r=0;r<8;r++) for (let cc=0;cc<8;cc++) if (b[r][cc]===c+'K') return [r,cc];
+  return null;
+}
+
+function isAttacked(b, r, c, byCol) {
+  for (let fr=0;fr<8;fr++) for (let fc=0;fc<8;fc++) {
+    const p = b[fr][fc]; if (!p||col(p)!==byCol) continue;
+    if (rawMoves(b,fr,fc,null).some(m=>m[0]===r&&m[1]===c)) return true;
+  }
+  return false;
+}
+
+function rawMoves(b, r, c, ep) {
+  const p = b[r][c]; if (!p) return [];
+  const pc = col(p), t = p[1], enemy = opp(pc), moves = [];
+  const slide = dirs => dirs.forEach(([dr,dc]) => {
+    let nr=r+dr, nc=c+dc;
+    while (inB(nr,nc)) {
+      const sq = b[nr][nc];
+      if (sq) { if (col(sq)===enemy) moves.push([nr,nc]); break; }
+      moves.push([nr,nc]); nr+=dr; nc+=dc;
+    }
+  });
+  if (t==='R') slide([[1,0],[-1,0],[0,1],[0,-1]]);
+  if (t==='B') slide([[1,1],[1,-1],[-1,1],[-1,-1]]);
+  if (t==='Q') slide([[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]);
+  if (t==='N') [[2,1],[2,-1],[-2,1],[-2,-1],[1,2],[1,-2],[-1,2],[-1,-2]].forEach(([dr,dc])=>{
+    const nr=r+dr,nc=c+dc; if (inB(nr,nc)&&col(b[nr][nc])!==pc) moves.push([nr,nc]);
+  });
+  if (t==='K') [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([dr,dc])=>{
+    const nr=r+dr,nc=c+dc; if (inB(nr,nc)&&col(b[nr][nc])!==pc) moves.push([nr,nc]);
+  });
+  if (t==='P') {
+    const dir=pc==='w'?-1:1, start=pc==='w'?6:1;
+    if (inB(r+dir,c)&&!b[r+dir][c]) {
+      moves.push([r+dir,c]);
+      if (r===start&&!b[r+2*dir][c]) moves.push([r+2*dir,c]);
+    }
+    [[dir,-1],[dir,1]].forEach(([dr,dc])=>{
+      const nr=r+dr,nc=c+dc;
+      if (inB(nr,nc)&&col(b[nr][nc])===enemy) moves.push([nr,nc]);
+      if (ep&&nr===ep[0]&&nc===ep[1]) moves.push([nr,nc]);
+    });
+  }
+  return moves;
+}
+
+function getLegalMoves(b, r, c, ep, cr) {
+  const p = b[r][c]; if (!p) return [];
+  const pc = col(p), enemy = opp(pc);
+  let moves = rawMoves(b,r,c,ep);
+  if (p[1]==='K') {
+    const base = pc==='w'?7:0;
+    if (cr[pc+'K']) {
+      if (cr[pc+'R7']&&!b[base][5]&&!b[base][6]&&!isAttacked(b,base,4,enemy)&&!isAttacked(b,base,5,enemy)&&!isAttacked(b,base,6,enemy))
+        moves.push([base,6,'ck']);
+      if (cr[pc+'R0']&&!b[base][1]&&!b[base][2]&&!b[base][3]&&!isAttacked(b,base,4,enemy)&&!isAttacked(b,base,3,enemy)&&!isAttacked(b,base,2,enemy))
+        moves.push([base,2,'cq']);
+    }
+  }
+  return moves.filter(([nr,nc,flag]) => {
+    const nb = b.map(row=>[...row]);
+    nb[nr][nc]=nb[r][c]; nb[r][c]=null;
+    if (flag==='ck') { nb[nr][nc-1]=pc+'R'; nb[nr][nc+1]=null; }
+    if (flag==='cq') { nb[nr][nc+1]=pc+'R'; nb[nr][nc-2]=null; }
+    if (p[1]==='P'&&ep&&nr===ep[0]&&nc===ep[1]) nb[r][nc]=null;
+    const kp = kingPos(nb,pc); return kp&&!isAttacked(nb,kp[0],kp[1],enemy);
+  });
+}
+
+function doMove(fromR,fromC,toR,toC,flag,promoPiece) {
+  const p = board[fromR][fromC], pc = col(p), enemy = opp(pc);
+  const cap = board[toR][toC];
+  let epCap = null;
+  if (p[1]==='P'&&enPassant&&toR===enPassant[0]&&toC===enPassant[1]) {
+    epCap = board[fromR][toC]; board[fromR][toC]=null;
+  }
+  board[toR][toC]=p; board[fromR][fromC]=null;
+  if (flag==='ck') { board[toR][toC-1]=pc+'R'; board[toR][toC+1]=null; }
+  if (flag==='cq') { board[toR][toC+1]=pc+'R'; board[toR][toC-2]=null; }
+  if (pc==='w'&&fromR===7) { if(fromC===4)castleRights.wK=false; if(fromC===0)castleRights.wR0=false; if(fromC===7)castleRights.wR7=false; }
+  if (pc==='b'&&fromR===0) { if(fromC===4)castleRights.bK=false; if(fromC===0)castleRights.bR0=false; if(fromC===7)castleRights.bR7=false; }
+  if (p[1]==='P'&&Math.abs(toR-fromR)===2) enPassant=[(fromR+toR)/2,toC]; else enPassant=null;
+  if (p[1]==='P'&&(toR===0||toR===7)) {
+    if (promoPiece) { board[toR][toC]=pc+promoPiece; }
+    else {
+      pendingPromo = { r:toR, c:toC, pc };
+      showPromo(pc);
+    }
+  }
+  const captured = cap||(epCap||null);
+  if (captured) (pc==='w'?capturedB:capturedW).push(captured);
+  lastMove = [[fromR,fromC],[toR,toC]];
+  if (!pendingPromo) finishTurn(enemy);
+}
+
+function finishTurn(enemy) {
+  turn = enemy;
+  pendingPromo = null;
+  checkGameState();
+  render();
+  updateTurnUI();
+}
+
+function showPromo(pc) {
+  const pieces = pc==='w' ? ['Q','R','B','N'] : ['Q','R','B','N'];
+  const container = document.getElementById('promo-pieces');
+  container.innerHTML = '';
+  pieces.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'promo-btn';
+    btn.textContent = GLYPHS[pc+t];
+    btn.onclick = () => {
+      board[pendingPromo.r][pendingPromo.c] = pendingPromo.pc + t;
+      document.getElementById('promo-overlay').classList.add('hidden');
+      finishTurn(opp(pendingPromo.pc));
+    };
+    container.appendChild(btn);
+  });
+  document.getElementById('promo-overlay').classList.remove('hidden');
+}
+
+function checkGameState() {
+  const pc = turn, enemy = opp(pc);
+  let anyLegal = false;
+  outer: for (let r=0;r<8;r++) for (let c=0;c<8;c++) {
+    if (col(board[r][c])===pc&&getLegalMoves(board,r,c,enPassant,castleRights).length>0) { anyLegal=true; break outer; }
+  }
+  const kp = kingPos(board,pc);
+  const inCheck = kp&&isAttacked(board,kp[0],kp[1],enemy);
+  const statusEl = document.getElementById('status');
+  if (!anyLegal) {
+    gameOver = true;
+    statusEl.className = 'status-bar win';
+    if (inCheck) statusEl.textContent = (pc==='w'?'Musta':'Valkoinen')+' voittaa! Shakki-matti!';
+    else statusEl.textContent = 'Pattitilanne — Tasapeli!';
+  } else if (inCheck) {
+    statusEl.className = 'status-bar check';
+    statusEl.textContent = (pc==='w'?'Valkoinen':'Musta')+' on shakissa!';
+  } else {
+    statusEl.className = 'status-bar';
+    statusEl.textContent = (pc==='w'?'Valkoisen':'Mustan')+' vuoro';
+  }
+}
+
+function updateTurnUI() {
+  ['white','black'].forEach(side => {
+    const isActive = (side==='white'&&turn==='w')||(side==='black'&&turn==='b');
+    document.getElementById('dot-'+side).className='player-dot '+side+(isActive?' active':'');
+    document.getElementById('name-'+side).className='player-name'+(isActive?' active':'');
+  });
+}
+
+function render() {
+  const el = document.getElementById('board'); el.innerHTML = '';
+  const enemy = opp(turn);
+  const kp = kingPos(board, turn);
+  const inCheck = kp&&isAttacked(board,kp[0],kp[1],enemy);
+  for (let r=0;r<8;r++) for (let c=0;c<8;c++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell '+((r+c)%2===0?'light':'dark');
+    if (lastMove) {
+      if (lastMove[0][0]===r&&lastMove[0][1]===c) cell.classList.add('last-move-from');
+      if (lastMove[1][0]===r&&lastMove[1][1]===c) cell.classList.add('last-move-to');
+    }
+    if (inCheck&&kp&&kp[0]===r&&kp[1]===c) cell.classList.add('in-check');
+    if (selected&&selected[0]===r&&selected[1]===c) cell.classList.add('selected');
+    const isValid = validMoves.some(m=>m[0]===r&&m[1]===c);
+    if (isValid) {
+      const hasEnemy = board[r][c]&&col(board[r][c])!==turn;
+      const isEP = enPassant&&r===enPassant[0]&&c===enPassant[1];
+      cell.classList.add(hasEnemy||isEP?'valid-capture':'valid-move');
+    }
+    const p = board[r][c]; if (p) cell.textContent = GLYPHS[p];
+    cell.onclick = () => handleClick(r,c);
+    el.appendChild(cell);
+  }
+  document.getElementById('rlabels').innerHTML = Array.from({length:8},(_,i)=>`<span>${8-i}</span>`).join('');
+  document.getElementById('clabels').innerHTML = 'abcdefgh'.split('').map(l=>`<span>${l}</span>`).join('');
+  document.getElementById('cap-black').textContent = capturedB.map(p=>GLYPHS[p]).join('');
+  document.getElementById('cap-white').textContent = capturedW.map(p=>GLYPHS[p]).join('');
+}
+
+function handleClick(r,c) {
+  if (gameOver||pendingPromo) return;
+  const p = board[r][c];
+  if (selected) {
+    const move = validMoves.find(m=>m[0]===r&&m[1]===c);
+    if (move) {
+      doMove(selected[0],selected[1],r,c,move[2]);
+      selected=null; validMoves=[];
+    } else if (p&&col(p)===turn) {
+      selected=[r,c]; validMoves=getLegalMoves(board,r,c,enPassant,castleRights);
+    } else { selected=null; validMoves=[]; }
+  } else {
+    if (p&&col(p)===turn) { selected=[r,c]; validMoves=getLegalMoves(board,r,c,enPassant,castleRights); }
+  }
+  if (!pendingPromo) render();
+}
+
+resetGame();
+</script>
+</body>
+</html>
