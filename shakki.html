@@ -170,6 +170,19 @@
     transition: filter 0.1s;
   }
 
+  .piece { line-height: 1; display: inline-block; }
+  .piece.w {
+    color: #ffffff;
+    text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000,
+                 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000,
+                 0 2px 3px rgba(0,0,0,0.5);
+  }
+  .piece.b {
+    color: #111111;
+    text-shadow: 0 0 2px rgba(255,255,255,0.55), 0 2px 3px rgba(0,0,0,0.4);
+  }
+  .captured-pieces .piece.w { text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000; }
+  .captured-pieces .piece.b { color: #000; text-shadow: 0 0 2px rgba(255,255,255,0.7); }
   .cell:hover { filter: brightness(1.1); }
   .cell.light { background: var(--light-sq); }
   .cell.dark  { background: var(--dark-sq); }
@@ -349,10 +362,10 @@
 </div>
 
 <script>
-const GLYPHS = {
-  wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',
-  bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'
-};
+const SOLID = { K:'♚', Q:'♛', R:'♜', B:'♝', N:'♞', P:'♟' };
+const GLYPHS = {};
+['w','b'].forEach(c => Object.keys(SOLID).forEach(t => { GLYPHS[c+t] = SOLID[t] + '\uFE0E'; }));
+const pieceHTML = p => `<span class="piece ${p[0]}">${GLYPHS[p]}</span>`;
 
 let board, turn, selected, validMoves, lastMove, capturedW, capturedB, gameOver, enPassant, castleRights;
 let pendingPromo = null;
@@ -492,7 +505,7 @@ function showPromo(pc) {
   pieces.forEach(t => {
     const btn = document.createElement('button');
     btn.className = 'promo-btn';
-    btn.textContent = GLYPHS[pc+t];
+    btn.innerHTML = pieceHTML(pc+t);
     btn.onclick = () => {
       board[pendingPromo.r][pendingPromo.c] = pendingPromo.pc + t;
       document.getElementById('promo-overlay').classList.add('hidden');
@@ -554,14 +567,14 @@ function render() {
       const isEP = enPassant&&r===enPassant[0]&&c===enPassant[1];
       cell.classList.add(hasEnemy||isEP?'valid-capture':'valid-move');
     }
-    const p = board[r][c]; if (p) cell.textContent = GLYPHS[p];
+    const p = board[r][c]; if (p) cell.innerHTML = pieceHTML(p);
     cell.onclick = () => handleClick(r,c);
     el.appendChild(cell);
   }
   document.getElementById('rlabels').innerHTML = Array.from({length:8},(_,i)=>`<span>${8-i}</span>`).join('');
   document.getElementById('clabels').innerHTML = 'abcdefgh'.split('').map(l=>`<span>${l}</span>`).join('');
-  document.getElementById('cap-black').textContent = capturedB.map(p=>GLYPHS[p]).join('');
-  document.getElementById('cap-white').textContent = capturedW.map(p=>GLYPHS[p]).join('');
+  document.getElementById('cap-black').innerHTML = capturedB.map(pieceHTML).join('');
+  document.getElementById('cap-white').innerHTML = capturedW.map(pieceHTML).join('');
 }
 
 function handleClick(r,c) {
