@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Äänen liuku</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@200;400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#E9EEF7; --surface:#F7F9FD; --ink:#1E2A4A; --muted:#56638A; --line:#C6D0E6;
+  --low:#3E6FD8; --high:#D08A12; --btn-ink:#F7F9FD;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121A30; --surface:#1C2746; --ink:#EEF1F8; --muted:#9AA6C8; --line:#33426B;
+    --low:#6E9BFF; --high:#F2C14E; --btn-ink:#121A30;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121A30; --surface:#1C2746; --ink:#EEF1F8; --muted:#9AA6C8; --line:#33426B;
+  --low:#6E9BFF; --high:#F2C14E; --btn-ink:#121A30;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Sora",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+main{max-width:640px;margin:0 auto;padding:2.25rem 1.25rem 3rem}
+h1{font-weight:600;font-size:1.15rem;margin:0 0 .35rem}
+.lead{color:var(--muted);margin:0 0 2.25rem;font-size:.95rem;line-height:1.55;max-width:46ch}
+
+.readout{
+  font-weight:200;font-size:clamp(4rem,19vw,7.5rem);line-height:.95;
+  letter-spacing:-.04em;font-variant-numeric:tabular-nums;margin:0;
+  background:linear-gradient(90deg,var(--low),var(--high));
+  background-size:100% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.readout span{font-size:.28em;font-weight:400;letter-spacing:0;margin-left:.25em;color:var(--muted);-webkit-text-fill-color:var(--muted)}
+.status{color:var(--muted);font-size:.9rem;margin:.75rem 0 1.75rem;min-height:1.4em;font-variant-numeric:tabular-nums}
+
+.band{position:relative;height:44px;border-radius:4px;overflow:hidden;background:linear-gradient(90deg,var(--low),var(--high))}
+.band .rest{position:absolute;top:0;bottom:0;right:0;width:100%;background:var(--surface);border:1px solid var(--line);border-left:none;border-radius:0 4px 4px 0}
+.band .marker{position:absolute;top:-2px;bottom:-2px;width:2px;left:0;background:var(--ink);transform:translateX(-1px)}
+.ticks{position:relative;height:1.4rem;margin-top:.4rem;font-size:.72rem;color:var(--muted)}
+.ticks i{position:absolute;font-style:normal;transform:translateX(-50%);white-space:nowrap}
+
+canvas{display:block;width:100%;height:110px;margin:1.5rem 0 2rem}
+
+.play{
+  display:block;width:100%;padding:1.05rem;border:none;border-radius:999px;cursor:pointer;
+  font:600 1.05rem/1 "Sora",system-ui,sans-serif;color:var(--btn-ink);background:var(--ink);
+}
+.play:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--low);outline-offset:3px}
+
+.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:2rem}
+.controls label{display:flex;flex-direction:column;gap:.4rem;font-size:.82rem;color:var(--muted)}
+.controls input[type=number],.controls select{
+  font:400 1rem "Sora",system-ui,sans-serif;color:var(--ink);background:var(--surface);
+  border:1px solid var(--line);border-radius:6px;padding:.6rem .65rem;width:100%;min-width:0;
+}
+.wide{grid-column:span 2}
+input[type=range]{width:100%;accent-color:var(--low)}
+.check{flex-direction:row!important;align-items:center;gap:.5rem!important;align-self:end;padding-bottom:.65rem}
+.check input{width:1.1rem;height:1.1rem;accent-color:var(--low)}
+.hint{color:var(--muted);font-size:.8rem;line-height:1.5;margin-top:1.75rem}
+@media (max-width:480px){
+  .controls{grid-template-columns:1fr 1fr}
+  .wide{grid-column:span 2}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Äänen liuku</h1>
+  <p class="lead">Siniaalto nousee tasaisesti matalasta korkeaan. Nousu on logaritminen, joten jokainen oktaavi kestää yhtä kauan ja liuku kuulostaa tasaiselta.</p>
+
+  <p class="readout" id="readout" aria-live="off">40<span>Hz</span></p>
+  <p class="status" id="status">Valmiina</p>
+
+  <div class="band" aria-hidden="true">
+    <div class="rest" id="rest"></div>
+    <div class="marker" id="marker"></div>
+  </div>
+  <div class="ticks" id="ticks" aria-hidden="true"></div>
+
+  <canvas id="scope" aria-hidden="true"></canvas>
+
+  <button class="play" id="play" type="button">Aloita liuku</button>
+
+  <div class="controls">
+    <label>Alkutaajuus (Hz)<input type="number" id="from" value="40" min="20" max="20000" step="1"></label>
+    <label>Lopputaajuus (Hz)<input type="number" id="to" value="4000" min="20" max="20000" step="1"></label>
+    <label>Kesto (s)<input type="number" id="dur" value="30" min="1" max="600" step="1"></label>
+    <label class="wide">Äänenvoimakkuus<input type="range" id="vol" min="0" max="1" step="0.01" value="0.25"></label>
+    <label>Aaltomuoto
+      <select id="wave">
+        <option value="sine">Sini</option>
+        <option value="triangle">Kolmio</option>
+        <option value="square">Kantti</option>
+        <option value="sawtooth">Saha</option>
+      </select>
+    </label>
+    <label class="check"><input type="checkbox" id="loop">Toista uudelleen</label>
+  </div>
+
+  <p class="hint">Aloita hiljaisella äänenvoimakkuudella, varsinkin kuulokkeilla. Korkeat taajuudet kuulostavat voimakkaammilta kuin matalat, ja puhelimen kaiutin ei yleensä toista alle 100 Hz:n ääniä.</p>
+</main>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const readout = $('readout'), statusEl = $('status'), rest = $('rest'), marker = $('marker');
+  const ticks = $('ticks'), canvas = $('scope'), playBtn = $('play');
+  const g = canvas.getContext('2d');
+  const NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','H'];
+
+  let ctx = null, osc = null, env = null, volNode = null, analyser = null;
+  let startT = 0, dur = 30, f0 = 40, f1 = 4000, running = false, token = 0, raf = 0;
+
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, isFinite(v) ? v : a));
+  const fmt = f => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2).replace('.', ',') + '<span>kHz</span>'
+                             : Math.round(f) + '<span>Hz</span>';
+  function noteName(f){
+    const n = Math.round(12 * Math.log2(f / 440)) + 69;
+    return NAMES[((n % 12) + 12) % 12] + (Math.floor(n / 12) - 1);
+  }
+
+  function readSettings(){
+    f0 = clamp(+$('from').value, 20, 20000);
+    f1 = clamp(+$('to').value, 20, 20000);
+    dur = clamp(+$('dur').value, 1, 600);
+  }
+
+  function buildTicks(){
+    readSettings();
+    ticks.innerHTML = '';
+    const lo = Math.min(f0, f1), hi = Math.max(f0, f1);
+    if (hi / lo < 1.01) return;
+    const span = Math.log(f1 / f0);
+    const nice = [20,50,100,200,500,1000,2000,5000,10000,20000];
+    nice.filter(v => v > lo * 1.08 && v < hi / 1.08).forEach(v => {
+      const p = Math.log(v / f0) / span;
+      const el = document.createElement('i');
+      el.style.left = (p * 100) + '%';
+      el.textContent = v >= 1000 ? (v / 1000) + 'k' : v;
+      ticks.appendChild(el);
+    });
+  }
+
+  function setProgress(p){
+    rest.style.width = ((1 - p) * 100) + '%';
+    marker.style.left = (p * 100) + '%';
+  }
+
+  function sizeCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvas.clientWidth * dpr;
+    canvas.height = canvas.clientHeight * dpr;
+  }
+
+  const buf = new Float32Array(2048);
+  function drawScope(){
+    const w = canvas.width, h = canvas.height;
+    g.clearRect(0, 0, w, h);
+    g.lineWidth = 2 * (window.devicePixelRatio || 1);
+    g.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
+    g.beginPath();
+    if (analyser && running){
+      analyser.getFloatTimeDomainData(buf);
+      const n = 1024;
+      for (let i = 0; i < n; i++){
+        const x = i / (n - 1) * w;
+        const y = h / 2 - buf[i] * (h * 0.45) / Math.max(0.05, +$('vol').value);
+        i ? g.lineTo(x, y) : g.moveTo(x, y);
+      }
+    } else {
+      g.moveTo(0, h / 2); g.lineTo(w, h / 2);
+    }
+    g.stroke();
+  }
+
+  function frame(){
+    if (!running) return;
+    const elapsed = ctx.currentTime - startT;
+    const p = clamp(elapsed / dur, 0, 1);
+    const f = f0 * Math.pow(f1 / f0, p);
+    readout.innerHTML = fmt(f);
+    const left = Math.max(0, Math.ceil(dur - elapsed));
+    statusEl.textContent = 'Lähin sävel ' + noteName(f) + ', jäljellä ' + left + ' s';
+    setProgress(p);
+    drawScope();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function start(){
+    readSettings();
+    buildTicks();
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume();
+
+    const my = ++token;
+    analyser = ctx.createAnalyser(); analyser.fftSize = 2048;
+    volNode = ctx.createGain(); volNode.gain.value = +$('vol').value;
+    env = ctx.createGain();
+    osc = ctx.createOscillator();
+    osc.type = $('wave').value;
+
+    const t = ctx.currentTime + 0.05;
+    const fade = Math.min(0.3, dur / 4);
+    osc.frequency.setValueAtTime(f0, t);
+    osc.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(1, t + fade);
+    env.gain.setValueAtTime(1, t + dur - fade);
+    env.gain.linearRampToValueAtTime(0, t + dur);
+
+    osc.connect(env).connect(volNode).connect(analyser).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+    osc.onended = () => {
+      if (my !== token || !running) return;
+      if ($('loop').checked) start(); else finish('Valmis');
+    };
+
+    startT = t;
+    running = true;
+    playBtn.textContent = 'Pysäytä';
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(frame);
+  }
+
+  function finish(msg){
+    running = false;
+    token++;
+    cancelAnimationFrame(raf);
+    playBtn.textContent = 'Aloita liuku';
+    statusEl.textContent = msg;
+    drawScope();
+  }
+
+  function stop(){
+    if (osc && ctx){
+      const now = ctx.currentTime;
+      env.gain.cancelScheduledValues(now);
+      env.gain.setValueAtTime(env.gain.value, now);
+      env.gain.linearRampToValueAtTime(0, now + 0.08);
+      try { osc.stop(now + 0.1); } catch(e){}
+    }
+    finish('Pysäytetty');
+  }
+
+  playBtn.addEventListener('click', () => running ? stop() : start());
+  $('vol').addEventListener('input', e => {
+    if (volNode && ctx) volNode.gain.setTargetAtTime(+e.target.value, ctx.currentTime, 0.03);
+  });
+  ['from','to','dur'].forEach(id => $(id).addEventListener('change', () => {
+    buildTicks();
+    if (!running){ readout.innerHTML = fmt(f0); setProgress(0); }
+  }));
+  window.addEventListener('resize', () => { sizeCanvas(); drawScope(); });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', drawScope);
+
+  sizeCanvas();
+  buildTicks();
+  readout.innerHTML = fmt(f0);
+  setProgress(0);
+  drawScope();
+})();
+</script>
+</body>
+</html>
