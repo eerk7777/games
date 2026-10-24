@@ -80,6 +80,17 @@ button:focus-visible{outline:3px solid var(--low);outline-offset:3px}
 .small{color:var(--muted);font-size:.8rem;line-height:1.5;margin:1.75rem 0 0}
 .warn{color:var(--bad);font-size:.88rem;line-height:1.5;margin:0 0 1.25rem}
 .result .primary{margin-top:2rem}
+
+.speechCtl{margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid var(--line)}
+.speechCtl label{display:flex;justify-content:space-between;align-items:baseline;font-size:.9rem;margin-bottom:.6rem}
+.speechCtl output{font-variant-numeric:tabular-nums;font-weight:600}
+.speechRow{display:flex;gap:.9rem;align-items:center}
+.speechRow input[type=range]{flex:1;accent-color:var(--low);height:1.6rem}
+.secondary{
+  flex:none;padding:.6rem 1rem;border-radius:999px;border:1px solid var(--line);background:var(--surface);
+  color:var(--ink);font:400 .9rem/1 "Sora",system-ui,sans-serif;cursor:pointer;
+}
+input[type=range]:focus-visible{outline:3px solid var(--low);outline-offset:3px}
 </style>
 </head>
 <body>
@@ -108,6 +119,14 @@ button:focus-visible{outline:3px solid var(--low);outline-offset:3px}
     <button class="primary" id="againBtn" type="button">Tee testi uudelleen</button>
     <p class="small">Tulos riippuu kuulokkeista, puhelimesta ja ympäristön melusta. Jos kuulo huolettaa, varaa aika kuulontutkimukseen.</p>
   </section>
+
+  <div class="speechCtl">
+    <label for="speechVol">Puheen äänenvoimakkuus <output id="speechVolOut">100 %</output></label>
+    <div class="speechRow">
+      <input type="range" id="speechVol" min="20" max="100" step="5" value="100">
+      <button class="secondary" id="tryBtn" type="button">Kokeile</button>
+    </div>
+  </div>
 </main>
 
 <script>
@@ -122,6 +141,11 @@ button:focus-visible{outline:3px solid var(--low);outline-offset:3px}
   let voice = null, round = 0, correct = 0, answer = -1, results = [], locked = true, fallbackTimer = 0;
 
   /* ---------- Puhe ---------- */
+  const volInput = $('speechVol'), volOut = $('speechVolOut');
+  function speechLevel(){ return Math.min(100, Math.max(20, +volInput.value)) / 100; }
+  function showVol(){ volOut.textContent = volInput.value + ' %'; }
+  volInput.addEventListener('input', showVol);
+  showVol();
   function pickVoice(){
     if (!('speechSynthesis' in window)) return;
     const vs = speechSynthesis.getVoices();
@@ -139,7 +163,7 @@ button:focus-visible{outline:3px solid var(--low);outline-offset:3px}
     u.lang = 'fi-FI';
     if (voice) u.voice = voice;
     u.rate = 0.9;
-    u.volume = 1;
+    u.volume = speechLevel();
     let done = false;
     const finish = () => { if (done) return; done = true; clearTimeout(fallbackTimer); onEnd && onEnd(); };
     u.onend = finish;
@@ -300,6 +324,7 @@ button:focus-visible{outline:3px solid var(--low);outline-offset:3px}
 
   $('startBtn').addEventListener('click', startGame);
   $('againBtn').addEventListener('click', startGame);
+  $('tryBtn').addEventListener('click', () => speak('viisi'));
 
   // Varoitus, jos puhesynteesiä tai suomenkielistä ääntä ei löydy
   setTimeout(() => {
